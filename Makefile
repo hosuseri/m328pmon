@@ -4,16 +4,16 @@ CC = avr-gcc
 OBJCOPY = avr-objcopy
 OBJDUMP = avr-objdump
 
-CFLAGS = -Os -mmcu=atmega162 -Wa,-als
+CFLAGS = -Os -mmcu=atmega328p -Wa,-als
 LDFLAGS = -Wl,-Map=$(TARGET).map
 
 OBJS = \
 	vmq.o \
 	monitor.o
 
-PARTNO = m162
-PORT = usb:39:34
-PROGRAMMER = atmelice_isp
+PARTNO = m328p
+PORT = /dev/ttyUSB0
+PROGRAMMER = arduino
 
 all: $(TARGET).mot list
 
@@ -23,14 +23,8 @@ clean:
 list:  $(TARGET).lst
 
 flash: $(TARGET).mot
-	avrdude -c $(PROGRAMMER) -p $(PARTNO) -P $(PORT) -e \
-		-U flash:w:$(TARGET).mot
-
-fuse:
-	avrdude -c $(PROGRAMMER) -p $(PARTNO) -P $(PORT) -u \
-		-U efuse:w:0xff:m \
-		-U hfuse:w:0xd1:m \
-		-U lfuse:w:0x9f:m
+	avrdude -c $(PROGRAMMER) -p $(PARTNO) -P $(PORT) \
+		-U flash:w:$(TARGET).mot:s
 
 $(TARGET).lst: $(TARGET).elf
 	$(OBJDUMP) -d $(TARGET).elf >$(TARGET).lst

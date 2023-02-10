@@ -1,6 +1,6 @@
 /* APPLE COMPUTER 6502 HEX MONITOR
  * ORIGINALLY WRITTEN BY S.Wozniak
- * PORTED TO ATMega162 BY T.Tsukamoto
+ * PORTED TO ATmega328p BY T.Tsukamoto
  */
 #include <avr/io.h>
 
@@ -13,31 +13,42 @@
 #define XAML	r30
 #define XAMH	r31
 
-	.equ baud_rate, 25
-	.equ charbuf, 0x2000
-	.equ bank_port, 0x1c00  ; 0001 1100 0000 0000
+	.equ baud_rate, 25	; 38.4kbps @16MHz
+	.equ charbuf, 0x0200	; low 8bits are ignored (fixed to 0x00)
 
 	.text
 
-	.global reset
-reset:
+	.global USART_RX_vect
+USART_RX_vect:
+	out	_SFR_IO_ADDR(SMCR), r1
+	push	r0
+	lds	r0, UDR0
+	sts	read_one, r0
+	pop	r0
+	reti
+
+	.global init
+init:
+	cli
+	ldi	r18, 1<<IVCE
+	sts	MCUCR, r18
+	sts	MCUCR, r1
+	sei
+	ret
+	
 	.global monitor
 monitor:
-	cli
 	push	r28
 	push	r29
-	eor	r1, r1
-	ldi	r18, 1<<SRE
-	out	_SFR_IO_ADDR(MCUCR), r18
-	sts	bank_port, r1
+	//eor	r1, r1
 	ldi	r18, lo8(baud_rate)
-	out	_SFR_IO_ADDR(UBRR0L), r18
+	sts	UBRR0L, r18
 	ldi	r18, hi8(baud_rate)
-	out	_SFR_IO_ADDR(UBRR0H), r18
-	ldi	r18, (1<<RXEN0)|(1<<TXEN0)
-	out	_SFR_IO_ADDR(UCSR0B), r18
-	ldi	r18, (1<<URSEL0)|(1<<USBS0)|(3<<UCSZ00)
-	out	_SFR_IO_ADDR(UCSR0C), r18
+	sts	UBRR0H, r18
+	ldi	r18, (1<<RXCIE0)|(1<<RXEN0)|(1<<TXEN0)
+	sts	UCSR0B, r18
+	ldi	r18, (1<<USBS0)|(3<<UCSZ00)
+	sts	UCSR0C, r18
 	;; 
 	ldi	r28, 0x7f
 	ldi	r29, hi8(charbuf)
@@ -58,9 +69,19 @@ backspace:
 	dec	r28		; Back up text index.
 	brmi	getline		; Beyond start of line, reinitialize.
 nextchar:
-	sbis	_SFR_IO_ADDR(UCSR0A), RXC0 ; Key ready ?
-	rjmp	nextchar		   ; Loop until ready.
-	in	r18, _SFR_IO_ADDR(UDR0)	   ; Load char.
+	lds	r18, read_one
+	sts	read_one, r1
+	sei
+	or	r18, r18
+	brne	1f
+	ldi	r18, 1<<SE
+	out	_SFR_IO_ADDR(SMCR), r18
+	sleep
+	out	_SFR_IO_ADDR(SMCR), r1
+	rjmp	nextchar	; Loop until ready.
+1:
+	rcall	toupr
+
 	st	y, r18		; Add to text buffer
 	rcall	echo		; Display char.
 	cpi	r18, 0x0d	; CR?
@@ -172,9 +193,10 @@ prhex:	andi	r18, 0x0f	; Mask LSD for hex print.
 	ldi	r19, 0x7
 	add	r18, r19	; Add offset for letter.
 echo:	mov	r20, r18	; Save CR.
-1:	sbis	_SFR_IO_ADDR(UCSR0A), UDRE0 ; Write ready ?
-	rjmp	1b			    ; No, wait for display.
-	out	_SFR_IO_ADDR(UDR0), r18	    ; Output character.
+1:	lds	r0, UCSR0A	; Write ready ?
+	sbrs	r0, UDRE0
+	rjmp	1b		; No, wait for display.
+	sts	UDR0, r18	; Output character.
 	cpi	r18, 0x0d	; CR?
 	brne	2f		; No.
 	ldi	r18, 0x0a	; LF
@@ -185,6 +207,14 @@ echo:	mov	r20, r18	; Save CR.
 retc:	pop	r29
 	pop	r28
 	ret
+
+toupr:
+	cpi	r18, 'a'
+	brcs	1f
+	cpi	r18, 'f' + 1
+	brcc	1f
+	subi	r18, 'a' - 'A'
+1:	ret
 
 	.global gecho
 gecho:
