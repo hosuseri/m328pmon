@@ -224,7 +224,7 @@ retc:	pop	r29
 toupr:
 	cpi	r18, 'a'
 	brcs	1f
-	cpi	r18, 'f' + 1
+	cpi	r18, 'z' + 1
 	brcc	1f
 	subi	r18, 'a' - 'A'
 1:	ret
