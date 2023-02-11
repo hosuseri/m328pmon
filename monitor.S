@@ -33,6 +33,10 @@ init:
 	ldi	r18, 1<<IVCE
 	sts	MCUCR, r18
 	sts	MCUCR, r1
+
+	sbi	_SFR_IO_ADDR(DDRB), DDB5
+	sbi	_SFR_IO_ADDR(PORTB), PORTB5
+
 	sei
 	ret
 	
@@ -74,10 +78,16 @@ nextchar:
 	sei
 	or	r18, r18
 	brne	1f
+	
+	cbi	_SFR_IO_ADDR(PORTB), PORTB5
+	
 	ldi	r18, 1<<SE
 	out	_SFR_IO_ADDR(SMCR), r18
 	sleep
 	out	_SFR_IO_ADDR(SMCR), r1
+	
+	sbi	_SFR_IO_ADDR(PORTB), PORTB5
+	
 	rjmp	nextchar	; Loop until ready.
 1:
 	rcall	toupr
@@ -133,7 +143,10 @@ hexshift:
 	inc	r28		; Advance text index
 	rjmp	nexthex		; Always taken. Check next char for hex.
 nothex:	cp	r28, YSAV	; Check if L, H empty (no hex digits).
-	breq	escape		; Yes, generate ESC sequence
+	//breq	escape		; Yes, generate ESC sequence
+	brne	1f
+	rjmp	escape
+1:
 	mov	r18, MODE	; Test MODE byte
 	andi	r18, 0x10
 	breq	notstor		; b4=1 for STOR, 0 for XAM and BLOCK XAM
