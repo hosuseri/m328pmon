@@ -14,7 +14,7 @@
 #define XAMH	r31
 
 	.equ baud_rate, 25	; 38.4kbps @16MHz
-	.equ charbuf, 0x0200	; low 8bits are ignored (fixed to 0x00)
+	.equ charbuf, 0x0800	; low 8bits are ignored (fixed to 0x00)
 
 	.text
 
@@ -26,6 +26,18 @@ USART_RX_vect:
 	sts	read_one, r0
 	pop	r0
 	reti
+
+	.global dosleep
+dosleep:
+	cbi	_SFR_IO_ADDR(PORTB), PORTB5
+	ldi	r18, 1<<SE
+	out	_SFR_IO_ADDR(SMCR), r18
+	sei
+	nop
+	sleep
+	out	_SFR_IO_ADDR(SMCR), r1
+	sbi	_SFR_IO_ADDR(PORTB), PORTB5
+	ret
 
 	.global init
 init:
@@ -114,6 +126,10 @@ nextitem:
 	breq	setstor		; Yes, set STOR mode
 	cpi	r18, 0x52	; 'R'?
 	breq	run		; Yes, run user program.
+	cpi	r18, 'Q'
+	brne	1f
+	rjmp	retc
+1:	
 	mov	L, r1		; 0x00 -> L
 	mov	H, r1		;  and H.
 	mov	YSAV, r28	; Save Y for comparison.

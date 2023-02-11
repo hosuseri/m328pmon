@@ -5,7 +5,7 @@ OBJCOPY = avr-objcopy
 OBJDUMP = avr-objdump
 
 CFLAGS = -Os -mmcu=atmega328p -Wa,-als
-LDFLAGS = -Wl,-Map=$(TARGET).map
+LDFLAGS = -Wl,-Map=$(TARGET).map # -nostartfiles -nodefaultlibs
 
 OBJS = \
 	vmq.o \
