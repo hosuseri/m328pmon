@@ -22,8 +22,12 @@
 USART_RX_vect:
 	out	_SFR_IO_ADDR(SMCR), r1
 	push	r0
+	//in	r0, _SFR_IO_ADDR(SREG)
+	//push	r0
 	lds	r0, UDR0
 	sts	read_one, r0
+	//pop	r0
+	//out	_SFR_IO_ADDR(SREG), r0
 	pop	r0
 	reti
 

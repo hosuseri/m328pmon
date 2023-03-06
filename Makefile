@@ -9,7 +9,9 @@ LDFLAGS = -Wl,-Map=$(TARGET).map # -nostartfiles -nodefaultlibs
 
 OBJS = \
 	vmq.o \
-	monitor.o
+	monitor.o \
+	i2ceprom.o \
+	crc.o
 
 PARTNO = m328p
 PORT = /dev/ttyUSB0
