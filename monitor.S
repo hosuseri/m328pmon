@@ -106,6 +106,9 @@ nextchar:
 	
 	rjmp	nextchar	; Loop until ready.
 1:
+	cpi	r18, 0x1b	; ESC?
+	breq	escape		; Yes
+	
 	rcall	toupr
 
 	st	y, r18		; Add to text buffer
