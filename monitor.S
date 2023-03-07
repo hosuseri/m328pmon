@@ -70,6 +70,8 @@ monitor:
 	ldi	r18, (1<<USBS0)|(3<<UCSZ00)
 	sts	UCSR0C, r18
 	;; 
+	mov	MODE, r1	; SRAM Mode
+	;; 
 	ldi	r28, 0x7f
 	ldi	r29, hi8(charbuf)
 	mov	r18, r1		; set ZERO.
@@ -116,10 +118,12 @@ nextchar:
 	cpi	r18, 0x0d	; CR?
 	brne	notcr		; No.
 	ldi	r28, 0xff	; Reset text index.
-	mov	r18, r1		; For XAM mode.
+	mov	r18, r1
+	andi	MODE, 0x80	; For XAM mode.
 setstor:
 setmode:			; upon entry, XAM Mode Set
-	mov	MODE, r18	; 0x00=XAM, 0x3a=STOR, 0x2e=BLOCK XAM.
+	eor	MODE, r18	; 0x00=XAM, 0x3a=STOR, 0x2e=BLOCK XAM.
+				; 0x21=FLASH XAM.
 blkskip:
 	inc	r28		; Advance text index.
 nextitem:
@@ -133,10 +137,20 @@ nextitem:
 	breq	setstor		; Yes, set STOR mode
 	cpi	r18, 0x52	; 'R'?
 	breq	run		; Yes, run user program.
-	cpi	r18, 'Q'
+	cpi	r18, 'P'
 	brne	1f
+	ldi	MODE, 0x80
+	mov	r18, r1
+	rjmp	setmode
+1:	cpi	r18, 'S'
+	brne	2f
+	mov	MODE, r1
+	mov	r18, r1
+	rjmp	setmode
+2:	cpi	r18, 'Q'
+	brne	3f
 	rjmp	retc
-1:	
+3:	
 	mov	L, r1		; 0x00 -> L
 	mov	H, r1		;  and H.
 	mov	YSAV, r28	; Save Y for comparison.
@@ -180,7 +194,8 @@ run:	lsr	r31
 	ror	r30
 	ijmp			; Run at current XAM index
 notstor:
-	or	MODE, MODE
+	mov	r18, MODE
+	andi	r18, 0x7f
 	brne	xamnext		; MODE=0 for XAM, MODE=0x2e for BLOCK XAM.
 	mov	STL, L		; Copy hex data to
 	mov	STH, H		;  'store index'
@@ -199,10 +214,14 @@ nxtprnt:
 	rcall	echo		; Output it.
 prdata:	ldi	r18, 0x20	; Blank.
 	rcall	echo		; Output it.
+	bst	MODE, 7
+	brts	1f
 	ld	r18, z		; Get data byte at 'examine index'
-	rcall	prbyte		; Output it in hex format
+	rjmp	2f
+1:	lpm	r18, z
+2:	rcall	prbyte		; Output it in hex format
 xamnext:
-	mov	MODE, r1	; 0 -> MODE (XAM mode).
+	andi	MODE, 0x80	; 0 -> MODE (XAM mode).
 	mov	r18, XAML
 	cp	r18, L		; Compare 'examine index' to hex data.
 	mov	r18, XAMH
