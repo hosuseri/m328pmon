@@ -45,8 +45,8 @@ void memfill()
     register u_short acc, t;
     register u_char c, *p;
 
-    p = (u_char *)0x100;
-    for (i=0; i < 0x700; i++) {
+    p = (u_char *)0x180;
+    for (i=0; i < 0x680; i++) {
 	if (!(i & 0x7f)) {
 	    t = (u_short)i >> 7;
 	    c = (u_char)(t & 0xff);
@@ -65,7 +65,7 @@ void memzero()
     register u_char c, *p;
 
     c = (u_char)0;
-    p = (u_char *)0x100;
-    for (i=0; i < 0x7c0; i++)
+    p = (u_char *)0x180;
+    for (i=0; i < 0x740; i++)
 	*p++ = c;
 }
