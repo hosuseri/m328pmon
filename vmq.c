@@ -28,6 +28,7 @@ extern u_char twi_stop();
 extern void gecho(char);
 extern void dosleep();
 
+u_char twi_src0();
 u_short twi_transmit(short);
 u_short twi_receive();
 void echo(const char *);
@@ -39,8 +40,10 @@ char read_one = 0;
 u_char twi_status;
 enum twi_state_t twi_state;
 u_short twi_addr;
+u_short twi_remain;
 u_char twi_data;
 u_char twi_sla;
+u_char (*twi_src)();
 u_short crc;
 
 int main()
@@ -59,19 +62,11 @@ dbg:
 
     twi_sla = 0xa0;
     twi_addr = 0x0000;
-    for (i=0; i <= 0x7fff; i++, twi_addr++) {
-	if (!(i & 0x7f)) {
-	    phex(twi_addr, 4);
-	    crc = crc_step((u_char)(i & 0xff), 0xffff);
-	    crc = crc_step((u_char)(i >> 8), crc);
-	}
-	crc = crc_step((u_char)(i & 0x7f), crc);
+    twi_remain = 0x8000;
+    twi_src = twi_src0;
+    twi_transmit(1);
 
-	twi_data = (u_char)(crc & 0xff);
-	twi_transmit(1);
-
-	//phex(twi_status, 2);
-    }
+    //phex(twi_status, 2);
 
     nerr = 0;
     twi_sla = 0xa0;
@@ -106,6 +101,19 @@ dbg:
 
     //__ctors_end();
     return 0;
+}
+
+u_char twi_src0()
+{
+    register u_short p = twi_addr;
+    
+    if (!(p & 0x7f)) {
+	phex(twi_addr, 4);
+	crc = crc_step((u_char)(p & 0xff), 0xffff);
+	crc = crc_step((u_char)(p >> 8), crc);
+    }
+    crc = crc_step((u_char)(p & 0x7f), crc);
+    return (u_char)(crc & 0xff);
 }
 
 u_short twi_transmit(short n)
@@ -175,6 +183,10 @@ twi_transit:
 	     * ACK has been received.
 	     */
 	    twi_status = twi_send1((u_char)(twi_addr & 0xff));
+
+	    if (!(twi_addr & 0x3f))
+		phex(twi_addr, 4);
+
 	    twi_state = twi_s_ready;
 	    goto twi_transit;
 
@@ -200,8 +212,18 @@ twi_transit:
 	    if (n <= 0)
 		break;
 
+	    if (!twi_remain) {
+		twi_state = twi_s_stopping;
+		goto twi_transit;
+	    }
+	    twi_data = (*twi_src)();
 	    twi_status = twi_send1(twi_data);
-	    twi_state = twi_s_stopping;
+	    --twi_remain;
+	    twi_addr++;
+	    if (!(twi_addr & 0x3f)) {
+		twi_state = twi_s_stopping;
+		goto twi_transit;
+	    }
 	    goto twi_transit;
 
 	case 0x30:
@@ -250,7 +272,10 @@ twi_transit:
 	case 0x18:
 	    twi_status = twi_stop();
 	    twi_state = twi_s_idle;
-	    break;
+	    if (!twi_remain)
+		break;
+
+	    goto twi_transit;
 
 	default:
 	    twi_state = twi_s_write;
