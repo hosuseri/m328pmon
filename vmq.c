@@ -31,7 +31,7 @@ extern void dosleep();
 
 u_char twi_src0();
 void twi_sink0();
-u_short twi_transmit(short);
+u_short twi_transmit(char);
 u_short twi_receive();
 void echo(const char *);
 void memfill();
@@ -118,7 +118,7 @@ void twi_sink0()
     }
 }
 
-u_short twi_transmit(short n)
+u_short twi_transmit(char normal)
 {
     twi_state = twi_s_idle;
 
@@ -207,7 +207,7 @@ twi_transit:
 	     * Data byte has been transmitted;
 	     * ACK has been received.
 	     */
-	    if (n <= 0)
+	    if (!normal)
 		break;
 
 	    if (!twi_remain) {
@@ -297,11 +297,11 @@ twi_transit:
     switch (twi_state) {
     case twi_s_idle:
 
-	if (!(twi_addr & 0x3f)) {
+	if (!(twi_addr & 0x3f))
 	    twi_transmit(0);
-	    twi_status = twi_stop();
-	}
-
+	/**
+	 * repeated START
+	 */
 	twi_status = twi_start();
 	twi_state = twi_s_starting;
 	goto twi_transit;
@@ -311,6 +311,10 @@ twi_transit:
 	case 0x08:
 	    /**
 	     * A START condition has been transmited.
+	     */
+	case 0x10:
+	    /**
+	     * A repeated START condition has been transmitted.
 	     */
 	    twi_status = twi_send1(twi_sla|1);
 	    twi_state = twi_s_started;
@@ -344,7 +348,7 @@ twi_transit:
 	     * SLA+R has been transmitted;
 	     * NOT ACK has been received.
 	     */
-	    goto twi_dbg;
+	    break;
 
 	default:
 	    break;
@@ -374,10 +378,15 @@ twi_transit:
 		    twi_status = twi_req_wack();
 		goto twi_transit;
 	    }
-	    twi_status = twi_stop();
 	    twi_state = twi_s_idle;
-	    if (!twi_remain)
+	    if (!twi_remain) {
+		twi_status = twi_stop();
 		break;
+	    }
+	    /**
+	     * repeated START
+	     */
+	    twi_status = twi_start();
 	    goto twi_transit;
 
 	default:

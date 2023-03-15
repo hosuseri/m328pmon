@@ -39,7 +39,6 @@ twi_start:
 	rjmp	1b
 	lds	r18, TWSR
 	andi	r18, st_mask
-	//cpi	r18, 0x08
 	mov	r24, r18
 	out	_SFR_IO_ADDR(SREG), r0
 	ret
