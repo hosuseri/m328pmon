@@ -41,11 +41,12 @@ enum twi_state_t twi_state;
 u_short twi_addr;
 u_char twi_data;
 u_char twi_sla;
-u_short twi_data_wyde;
+u_short crc;
 
 int main()
 {
-    short i;
+    u_short i;
+    u_short nerr;
 
     init();
     memzero();
@@ -56,51 +57,50 @@ dbg:
     echo("zzz");
     dosleep();
 
+    twi_sla = 0xa0;
     twi_addr = 0x0000;
-    for (i=0; i <= 0x3fff; i++) {
-	twi_data_wyde = 0x3fff - i;
+    for (i=0; i <= 0x7fff; i++, twi_addr++) {
+	if (!(i & 0x7f)) {
+	    phex(twi_addr, 4);
+	    crc = crc_step((u_char)(i & 0xff), 0xffff);
+	    crc = crc_step((u_char)(i >> 8), crc);
+	}
+	crc = crc_step((u_char)(i & 0x7f), crc);
 
-	phex(twi_addr, 4);
-
-	twi_sla = 0xa0;
-	twi_data = (u_char)(twi_data_wyde & 0xff);
+	twi_data = (u_char)(crc & 0xff);
 	twi_transmit(1);
 
-	phex(twi_status, 2);
-
-	twi_addr++;
-	twi_data = (u_char)(twi_data_wyde >> 8);
-	twi_transmit(1);
-
-	phex(twi_status, 2);
-
-	twi_addr++;
+	//phex(twi_status, 2);
     }
 
+    nerr = 0;
+    twi_sla = 0xa0;
     twi_addr = 0x0000;
-    for (i=0; i <= 0x3fff; i++) {
+    for (i=0; i <= 0x7fff; i++, twi_addr++) {
+	if (!(i & 0x7f)) {
+	    phex(twi_addr, 4);
+	    crc = crc_step((u_char)(i & 0xff), 0xffff);
+	    crc = crc_step((u_char)(i >> 8), crc);
+	}
+	crc = crc_step((u_char)(i & 0x7f), crc);
 
-	phex(twi_addr, 4);
-
-	twi_sla = 0xa0;
 	twi_transmit(0);
 	twi_status = twi_stop();
 	twi_receive();
-	twi_data_wyde = (u_short)twi_data;
 
-	phex(twi_status, 2);
+	//phex(twi_status, 2);
 
-	twi_addr++;
-	twi_transmit(0);
-	twi_status = twi_stop();
-	twi_receive();
-	twi_data_wyde |= ((u_short)twi_data << 8);
+	if (twi_data != (u_char)(crc & 0xff)) {
+	    nerr++;
+	    echo("-*-E-*- ");
+	    phex(twi_addr, 4);
+	}
 
-	phex(twi_status, 2);
-	phex(twi_data_wyde, 4);
-
-	twi_addr++;
+	//phex(twi_data, 2);
     }
+    echo("\rnerr=");
+    phex(nerr, 4);
+    echo("--\r\n\r\n\r\n");
 
     goto dbg;
 
