@@ -73,6 +73,20 @@ twi_req:
 	out	_SFR_IO_ADDR(SREG), r0
 	ret
 
+	.global twi_req_wack
+twi_req_wack:
+	in	r0, _SFR_IO_ADDR(SREG)
+	ldi	r18, (1<<TWINT)|(1<<TWEA)|(1<<TWEN)
+	sts	TWCR, r18
+1:	lds	r18, TWCR
+	sbrs	r18, TWINT
+	rjmp	1b
+	lds	r18, TWSR
+	andi	r18, st_mask
+	mov	r24, r18
+	out	_SFR_IO_ADDR(SREG), r0
+	ret
+
 	.global twi_recv
 twi_recv:
 	in	r0, _SFR_IO_ADDR(SREG)

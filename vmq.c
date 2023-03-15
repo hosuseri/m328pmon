@@ -23,12 +23,14 @@ extern void twi_init();
 extern u_char twi_start();
 extern u_char twi_send1(u_char);
 extern u_char twi_req();
+extern u_char twi_req_wack();
 extern u_char twi_recv();
 extern u_char twi_stop();
 extern void gecho(char);
 extern void dosleep();
 
 u_char twi_src0();
+void twi_sink0();
 u_short twi_transmit(short);
 u_short twi_receive();
 void echo(const char *);
@@ -44,12 +46,13 @@ u_short twi_remain;
 u_char twi_data;
 u_char twi_sla;
 u_char (*twi_src)();
+void (*twi_sink)();
+u_short twi_nerr;
 u_short crc;
 
 int main()
 {
     u_short i;
-    u_short nerr;
 
     init();
     memzero();
@@ -60,42 +63,23 @@ dbg:
     echo("zzz");
     dosleep();
 
+    for (i=0; i < 1; i++) {
     twi_sla = 0xa0;
     twi_addr = 0x0000;
     twi_remain = 0x8000;
     twi_src = twi_src0;
     twi_transmit(1);
 
-    //phex(twi_status, 2);
-
-    nerr = 0;
     twi_sla = 0xa0;
     twi_addr = 0x0000;
-    for (i=0; i <= 0x7fff; i++, twi_addr++) {
-	if (!(i & 0x7f)) {
-	    phex(twi_addr, 4);
-	    crc = crc_step((u_char)(i & 0xff), 0xffff);
-	    crc = crc_step((u_char)(i >> 8), crc);
-	}
-	crc = crc_step((u_char)(i & 0x7f), crc);
-
-	twi_transmit(0);
-	twi_status = twi_stop();
-	twi_receive();
-
-	//phex(twi_status, 2);
-
-	if (twi_data != (u_char)(crc & 0xff)) {
-	    nerr++;
-	    echo("-*-E-*- ");
-	    phex(twi_addr, 4);
-	}
-
-	//phex(twi_data, 2);
+    twi_remain = 0x8000;
+    twi_sink = twi_sink0;
+    twi_nerr = 0;
+    twi_receive();
+    echo("\rtwi_nerr=");
+    phex(twi_nerr, 4);
+    echo("--\r\n");
     }
-    echo("\rnerr=");
-    phex(nerr, 4);
-    echo("--\r\n\r\n\r\n");
 
     goto dbg;
 
@@ -112,8 +96,26 @@ u_char twi_src0()
 	crc = crc_step((u_char)(p & 0xff), 0xffff);
 	crc = crc_step((u_char)(p >> 8), crc);
     }
-    crc = crc_step((u_char)(p & 0x7f), crc);
+    crc = crc_step((u_char)(p & 0xff), crc);
     return (u_char)(crc & 0xff);
+}
+
+void twi_sink0()
+{
+    register u_short p = twi_addr;
+
+    if (!(p & 0x7f)) {
+	phex(p, 4);
+	crc = crc_step((u_char)(p & 0xff), 0xffff);
+	crc = crc_step((u_char)(p >> 8), crc);
+    }
+    crc = crc_step((u_char)(p & 0xff), crc);
+
+    if (twi_data != (u_char)(crc & 0xff)) {
+	twi_nerr++;
+	echo("-*-E-*- ");
+	phex(p, 4);
+    }
 }
 
 u_short twi_transmit(short n)
@@ -183,10 +185,6 @@ twi_transit:
 	     * ACK has been received.
 	     */
 	    twi_status = twi_send1((u_char)(twi_addr & 0xff));
-
-	    if (!(twi_addr & 0x3f))
-		phex(twi_addr, 4);
-
 	    twi_state = twi_s_ready;
 	    goto twi_transit;
 
@@ -298,6 +296,12 @@ u_short twi_receive()
 twi_transit:
     switch (twi_state) {
     case twi_s_idle:
+
+	if (!(twi_addr & 0x3f)) {
+	    twi_transmit(0);
+	    twi_status = twi_stop();
+	}
+
 	twi_status = twi_start();
 	twi_state = twi_s_starting;
 	goto twi_transit;
@@ -330,7 +334,8 @@ twi_transit:
 	     * SLA+R has been transmitted;
 	     * ACK has been received.
 	     */
-	    twi_status = twi_req();
+	    twi_status =
+		twi_remain == 1 ? twi_req() : twi_req_wack();
 	    twi_state = twi_s_ready;
 	    goto twi_transit;
 
@@ -353,17 +358,27 @@ twi_transit:
 	     * Data byte has been received;
 	     * ACK has been received.
 	     */
-	    break;
-
 	case 0x58:
 	    /**
 	     * Data byte has been reveived;
 	     * NOT ACK has been received.
 	     */
 	    twi_data = twi_recv();
+	    (*twi_sink)(twi_data);
+	    twi_addr++;
+	    --twi_remain;
+	    if (twi_remain && (twi_addr & 0x3f)) {
+		if ((twi_addr & 0x3f) == 0x3f || twi_remain == 1)
+		    twi_status = twi_req();
+		else
+		    twi_status = twi_req_wack();
+		goto twi_transit;
+	    }
 	    twi_status = twi_stop();
 	    twi_state = twi_s_idle;
-	    break;
+	    if (!twi_remain)
+		break;
+	    goto twi_transit;
 
 	default:
 	    break;
