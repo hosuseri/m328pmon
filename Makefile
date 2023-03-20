@@ -9,8 +9,11 @@ LDFLAGS = -Wl,-Map=$(TARGET).map # -nostartfiles -nodefaultlibs
 
 OBJS = \
 	vmq.o \
+	twi.o \
+	twibase.o \
+	24lc256.o \
+	rtc8564nb.o \
 	monitor.o \
-	i2ceprom.o \
 	crc.o
 
 PARTNO = m328p
