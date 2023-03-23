@@ -12,7 +12,7 @@ void __ctors_end();
 void init();
 void monitor();
 void dosleep();
-void phex(u_char, char);
+void phex(u_short, char);
 void bio_putchar(char);
 void raw_putchar(char);
 void bio_echo(const char *);
