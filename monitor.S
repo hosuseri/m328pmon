@@ -16,6 +16,15 @@
 	.equ baud_rate, 25	; 38.4kbps @16MHz
 	.equ charbuf, 0x0800	; low 8bits are ignored (fixed to 0x00)
 
+	.data
+	
+	.extern read_one
+	
+	.global charbuf_ptr
+charbuf_ptr:
+	.dc.w	charbuf
+	
+
 	.text
 
 	.global USART_RX_vect
@@ -271,9 +280,159 @@ toupr:
 	subi	r18, 'a' - 'A'
 1:	ret
 
-	.global gecho
-gecho:
+	.global phex
+phex:
+	push	r0
+	in	r0, _SFR_IO_ADDR(SREG)
+	push	r0
+	push	r18
+	push	r19
+	push	r22
+	push	r23
+	push	r24
+	movw	r18, r24
+	ldi	r23, 4
+	sub	r23, r22
+	breq	2f
+1:	lsl	r18
+	rol	r19
+	lsl	r18
+	rol	r19
+	lsl	r18
+	rol	r19
+	lsl	r18
+	rol	r19
+	dec	r23
+	brne	1b
+2:	mov	r24, r1
+	lsl	r18
+	rol	r19
+	rol	r24
+	lsl	r18
+	rol	r19
+	rol	r24
+	lsl	r18
+	rol	r19
+	rol	r24
+	lsl	r18
+	rol	r19
+	rol	r24
+	cpi	r24, 10
+	brlo	3f
+	subi	r24, 10
+	ldi	r23, 'A'
+	add	r24, r23
+	rjmp	4f
+3:	ldi	r23, 0x30
+	add	r24, r23
+4:	push	r18
+	rcall	bio_putchar
+	pop	r18
+	dec	r22
+	brne	2b
+	pop	r24
+	pop	r23
+	pop	r22
+	pop	r19
+	pop	r18
+	pop	r0
+	out	_SFR_IO_ADDR(SREG), r0
+	pop	r0
+	ret
+
+	.global bio_putchar
+bio_putchar:
+	push	r0
+	in	r0, _SFR_IO_ADDR(SREG)
+	push	r0
+	push	r18
+	push	r24
+	cpi	r24, '\n'
+	brne	1f
 	mov	r18, r24
-	rjmp	echo
+	ldi	r24, '\r'
+	rcall	2f
+	mov	r24, r18
+1:	rcall	2f
+	pop	r24
+	pop	r18
+	pop	r0
+	out	_SFR_IO_ADDR(SREG), r0
+	pop	r0
+	ret
+2:	lds	r0, UCSR0A	; Write ready ?
+	sbrs	r0, UDRE0
+	rjmp	2b		; No, wait for display.
+	sts	UDR0, r24	; Output character.
+	ret
+
+	.global raw_putchar
+raw_putchar:
+	push	r0
+	in	r0, _SFR_IO_ADDR(SREG)
+	push	r0
+	rcall	2b
+	pop	r0
+	out	_SFR_IO_ADDR(SREG), r0
+	pop	r0
+	ret
+
+	.global bio_echo
+bio_echo:
+	in	r0, _SFR_IO_ADDR(SREG)
+	push	r0
+	movw	r26, r24
+1:	ld	r24, X+
+	or	r24, r24
+	brne	2f
+	pop	r0
+	out	_SFR_IO_ADDR(SREG), r0
+	ret
+2:	rcall	bio_putchar
+	rjmp	1b
+
+	.global bio_char_ready
+bio_char_ready:
+	lds	r24, read_one
+	ret
+
+	.global bio_getchar
+bio_getchar:
+	sei
+1:	rcall	bio_char_ready
+	or	r24, r24
+	brne	2f
+	
+	cbi	_SFR_IO_ADDR(PORTB), PORTB5
+	
+	ldi	r18, 1<<SE
+	out	_SFR_IO_ADDR(SMCR), r18
+	sleep
+	out	_SFR_IO_ADDR(SMCR), r1
+	
+	sbi	_SFR_IO_ADDR(PORTB), PORTB5
+
+	rjmp	1b
+
+2:	lds	r24, read_one
+	sts	read_one, r1
+	ret
+
+	.global bio_gets
+bio_gets:
+	ldi	r26, lo8(charbuf)
+	ldi	r27, hi8(charbuf)
+	ldi	r18, 127
+1:	push	r18
+	rcall	bio_getchar
+	pop	r18
+	cpi	r24, '\r'
+	breq	2f
+	st	X+, r24
+	rcall	bio_putchar
+	dec	r18
+	brne	1b
+2:	st	X+, r1
+	ret
 
 	.end

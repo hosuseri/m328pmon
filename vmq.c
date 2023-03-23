@@ -4,20 +4,25 @@
 #include <avr/interrupt.h>
 #include "crc.h"
 #include "24lc256.h"
+#include "rtc8564nb.h"
 
 extern void __ctors_end();
 extern void init();
 extern void monitor();
-extern void gecho(char);
 extern void dosleep();
+extern void bio_putchar(char);
+extern void bio_echo(const char *);
+extern void phex(u_short, char);
+extern volatile char bio_char_ready();
+extern volatile char bio_getchar();
+extern void bio_gets();
 
+void eprom_test();
+void rtc_test();
 u_char twi_src0();
 void twi_sink0();
-void echo(const char *);
-void memfill();
-void memzero();
-void phex(u_short, short);
 
+extern char *charbuf_ptr;
 char read_one = 0;
 u_short crc;
 
@@ -26,15 +31,23 @@ int main()
     u_short i;
 
     init();
-    memzero();
-    memfill();
     twi_init();
 dbg:
     monitor();
-    echo("zzz");
+    bio_echo("zzz");
     dosleep();
 
-    for (i=0; i < 1; i++) {
+    eprom_test();
+    rtc_test();
+
+    goto dbg;
+
+    //__ctors_end();
+    return 0;
+}
+
+void eprom_test()
+{
     twi_sla = 0xa0;
     twi_addr = 0x0000;
     twi_remain = 0x8000;
@@ -47,15 +60,164 @@ dbg:
     twi_sink = twi_sink0;
     twi_nerr = 0;
     twi_receive();
-    echo("\rtwi_nerr=");
+    bio_echo("twi_nerr=");
     phex(twi_nerr, 4);
-    echo("--\r\n");
+    bio_echo("\n--\n");
+}
+
+void rtc_test()
+{
+    char c, d, *p;
+    u_char ss, last_ss;
+    u_char mm;
+    short i;
+    u_short bcd, yyyy;
+
+    rtc_set_reg(rtc_control1, 0x00);
+    rtc_set_reg(rtc_control2, 0x00);
+    rtc_set_reg(rtc_minute_alarm, 0x00);
+    rtc_set_reg(rtc_hour_alarm, 0x00);
+    rtc_set_reg(rtc_day_alarm, 0x00);
+    rtc_set_reg(rtc_weekday_alarm, 0x00);
+    rtc_set_reg(rtc_clkout_freq, 0x00);
+    rtc_set_reg(rtc_timer_control, 0x00);
+    rtc_set_reg(rtc_timer, 0x00);
+
+show_time:
+    bio_putchar('\n');
+    last_ss = 0xff;
+    while (bio_char_ready())
+	bio_getchar();
+    for (;; last_ss = ss) {
+	if (bio_char_ready())
+	    break;
+
+	ss = rtc_get_reg(rtc_seconds) & 0x7f;
+	if (ss == last_ss)
+	    continue;
+
+	mm = rtc_get_reg(rtc_months);
+	yyyy = mm & 0x80 ? 0x2000 : 0x1900;
+	mm &= 0x1f;
+
+	bio_putchar('*');
+	phex(yyyy | rtc_get_reg(rtc_years), 4);
+	bio_putchar('/');
+	phex(mm, 2);
+	bio_putchar('/');
+	phex(rtc_get_reg(rtc_days) & 0x3f, 2);
+	bio_putchar(' ');
+	phex(rtc_get_reg(rtc_hours) & 0x3f, 2);
+	bio_putchar(':');
+	phex(rtc_get_reg(rtc_minutes) & 0x7f, 2);
+	bio_putchar(':');
+	phex(ss, 2);
+	bio_putchar('\r');
+    }
+    while (bio_char_ready())
+	bio_getchar();
+
+    bio_echo("\nSET TIME\n");
+    bio_gets();
+    bio_putchar('\n');
+    for (p=charbuf_ptr, i=0; c = *p++; i++)
+	if (c < '0' || c > '9')
+	    break;
+
+    d = c;
+    p = charbuf_ptr;
+    mm = 0x80;
+
+    switch (i >> 1) {
+    case 7:
+	goto L_millenium;
+    case 6:
+	goto L_year;
+    case 5:
+	goto L_month;
+    case 4:
+	goto L_day;
+    case 3:
+	goto L_hour;
+    case 2:
+	goto L_minute;
+    case 1:
+	goto L_second;
+
+    default:
+	if (d != 'q' && d != 'Q')
+	    goto show_time;
+	return;
     }
 
-    goto dbg;
+L_millenium:
+    c = *p++;
+    bcd = 0;
+    bcd |= c - '0';
+    c = *p++;
+    bcd <<= 4;
+    bcd |= c - '0';
+    if (bcd < 0x20)
+	mm = 0x00;
+    
 
-    //__ctors_end();
-    return 0;
+L_year:
+    c = *p++;
+    bcd = 0;
+    bcd |= c - '0';
+    c = *p++;
+    bcd <<= 4;
+    bcd |= c - '0';
+    rtc_get_reg(rtc_years);
+    rtc_set_reg(rtc_years, bcd);
+    ;
+L_month:
+    c = *p++;
+    bcd = 0;
+    bcd |= c - '0';
+    c = *p++;
+    bcd <<= 4;
+    bcd |= c - '0';
+    rtc_set_reg(rtc_months, mm | bcd & 0x1f);
+    ;
+L_day:
+    c = *p++;
+    bcd = 0;
+    bcd |= c - '0';
+    c = *p++;
+    bcd <<= 4;
+    bcd |= c - '0';
+    rtc_set_reg(rtc_days, bcd & 0x3f);
+    ;
+L_hour:
+    c = *p++;
+    bcd = 0;
+    bcd |= c - '0';
+    c = *p++;
+    bcd <<= 4;
+    bcd |= c - '0';
+    rtc_set_reg(rtc_hours, bcd & 0x3f);
+    ;
+L_minute:
+    c = *p++;
+    bcd = 0;
+    bcd |= c - '0';
+    c = *p++;
+    bcd <<= 4;
+    bcd |= c - '0';
+    rtc_set_reg(rtc_minutes, bcd & 0x7f);
+    ;
+L_second:
+    c = *p++;
+    bcd = 0;
+    bcd |= c - '0';
+    c = *p++;
+    bcd <<= 4;
+    bcd |= c - '0';
+    rtc_set_reg(rtc_seconds, bcd & 0x7f);
+    ;
+
+    goto show_time;
 }
 
 u_char twi_src0()
@@ -64,6 +226,7 @@ u_char twi_src0()
     
     if (!(p & 0x7f)) {
 	phex(twi_addr, 4);
+	bio_putchar('\n');
 	crc = crc_step((u_char)(p & 0xff), 0xffff);
 	crc = crc_step((u_char)(p >> 8), crc);
     }
@@ -77,6 +240,7 @@ void twi_sink0()
 
     if (!(p & 0x7f)) {
 	phex(p, 4);
+	bio_putchar('\n');
 	crc = crc_step((u_char)(p & 0xff), 0xffff);
 	crc = crc_step((u_char)(p >> 8), crc);
     }
@@ -84,63 +248,8 @@ void twi_sink0()
 
     if (twi_data != (u_char)(crc & 0xff)) {
 	twi_nerr++;
-	echo("-*-E-*- ");
+	bio_echo("-*-E-*- ");
 	phex(p, 4);
+	bio_putchar('\n');
     }
-}
-
-void echo(const char *s)
-{
-    register const char *p;
-
-    for (p=s; *p; p++) {
-	if (!*p)
-	    break;
-	gecho(*p);
-    }
-}
-
-void memfill()
-{
-    register short i;
-    register u_short acc, t;
-    register u_char c, *p;
-
-    p = (u_char *)0x180;
-    for (i=0; i < 0x680; i++) {
-	if (!(i & 0x7f)) {
-	    t = (u_short)i >> 7;
-	    c = (u_char)(t & 0xff);
-	    acc = crc_step(c, 0xffff);
-	    c = (u_char)(t >> 8);
-	    acc = crc_step(c, acc);
-	}
-	acc = crc_step((u_char)(i & 0x7f), acc);
-	*p++ = (u_char)(acc & 0xff);
-    }
-}
-
-void memzero()
-{
-    register short i;
-    register u_char c, *p;
-
-    c = (u_char)0;
-    p = (u_char *)0x180;
-    for (i=0; i < 0x740; i++)
-	*p++ = c;
-}
-
-void phex(u_short val, short len)
-{
-    char c;
-
-    if (len <= 0) {
-	gecho('\r');
-	return;
-    }
-    phex(val >> 4, len - 1);
-    c = val & 0xf;
-    c = c >= 10 ? c - 10 + 'A' : c + '0';
-    gecho(c);
 }

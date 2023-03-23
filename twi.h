@@ -9,7 +9,7 @@
 #endif
 
 enum twi_state_t {
-    twi_s_idle,
+    twi_s_idle = 0,
     twi_s_starting,
     twi_s_started,
     twi_s_addr_hi,
