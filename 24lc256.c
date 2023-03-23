@@ -263,7 +263,8 @@ L_twi_ready:
 	 * repeated START
 	 */
 	twi_status = twi_start();
-	goto L_twi_idle;
+	twi_state = twi_s_starting;
+	goto L_twi_starting;
 
     default:
 	break;
