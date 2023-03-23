@@ -2,20 +2,10 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include "bio.h"
 #include "crc.h"
 #include "24lc256.h"
 #include "rtc8564nb.h"
-
-extern void __ctors_end();
-extern void init();
-extern void monitor();
-extern void dosleep();
-extern void bio_putchar(char);
-extern void bio_echo(const char *);
-extern void phex(u_short, char);
-extern volatile char bio_char_ready();
-extern volatile char bio_getchar();
-extern void bio_gets();
 
 void eprom_test();
 void rtc_test();
