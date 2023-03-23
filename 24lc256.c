@@ -45,7 +45,7 @@ L_twi_started:
 	/**
 	 * Arbitration lost in SLA+W or data bytes.
 	 */
-	goto L_twi_error;
+	break;
 
     default:
 	break;
