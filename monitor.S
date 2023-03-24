@@ -214,7 +214,10 @@ nextitem:
 2:	cpi	r18, 'Q'
 	brne	3f
 	rjmp	retc
-3:	
+3:	cpi	r18, 'Z'
+	brne	4f
+	rjmp	zzz_sleep
+4:	
 	mov	L, r1		; 0x00 -> L
 	mov	H, r1		;  and H.
 	mov	YSAV, r28	; Save Y for comparison.
@@ -325,7 +328,16 @@ echo:	mov	r20, r18	; Save CR.
 	;;
 retc:	pop	r29
 	pop	r28
-	ret
+	jmp	restore_ctx
+	;;
+zzz_sleep:
+	ldi	r24, lo8(zzz)
+	ldi	r25, hi8(zzz)
+	call	pm_puts
+	call	dosleep
+	call	eprom_test
+	call	rtc_test
+	rjmp	retc
 
 toupr:
 	cpi	r18, 'a'
@@ -543,6 +555,61 @@ save_ctx:
 	std	Z + x_sph, r0
 	movw	r30, r18
 	ijmp
+
+	.global restore_ctx
+restore_ctx:
+	pop	r0
+	pop	r0
+	lds	r30, cur_ctx
+	lds	r31, cur_ctx + 1
+	ldd	r1, Z + x_r1
+	ldd	r2, Z + x_r2
+	ldd	r3, Z + x_r3
+	ldd	r4, Z + x_r4
+	ldd	r5, Z + x_r5
+	ldd	r6, Z + x_r6
+	ldd	r7, Z + x_r7
+	ldd	r8, Z + x_r8
+	ldd	r9, Z + x_r9
+	ldd	r10, Z + x_r10
+	ldd	r11, Z + x_r11
+	ldd	r12, Z + x_r12
+	ldd	r13, Z + x_r13
+	ldd	r14, Z + x_r14
+	ldd	r15, Z + x_r15
+	ldd	r16, Z + x_r16
+	ldd	r17, Z + x_r17
+	ldd	r18, Z + x_r18
+	ldd	r19, Z + x_r19
+	ldd	r20, Z + x_r20
+	ldd	r21, Z + x_r21
+	ldd	r22, Z + x_r22
+	ldd	r23, Z + x_r23
+	ldd	r24, Z + x_r24
+	ldd	r25, Z + x_r25
+	ldd	r26, Z + x_r26
+	ldd	r27, Z + x_r27
+	ldd	r28, Z + x_r28
+	ldd	r29, Z + x_r29
+	ldd	r0, Z + x_spl
+	out	_SFR_IO_ADDR(SPL), r0
+	ldd	r0, Z + x_sph
+	out	_SFR_IO_ADDR(SPH), r0
+	ldd	r0, Z + x_sreg
+	out	_SFR_IO_ADDR(SREG), r0
+	ldd	r0, Z + x_pcl
+	push	r0
+	ldd	r0, Z + x_pch
+	push	r0
+	ldd	r0, Z + x_r0
+	push	r28
+	push	r29
+	movw	r28, r30
+	ldd	r30, Y + x_r30
+	ldd	r31, Y + x_r31
+	pop	r29
+	pop	r28
+	ret
 
 show_regs:
 	push	r28
@@ -976,7 +1043,6 @@ L_pc:	.asciz "PC="
 L_sr_sep:
 	.asciz ", "
 
-hello_world:
-	.asciz "hello, world\n"
+zzz:	.asciz "zzz"
 
 	.end

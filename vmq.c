@@ -22,16 +22,8 @@ int main()
 
     init();
     twi_init();
-dbg:
     save_ctx();
     monitor();
-    bio_echo("zzz");
-    dosleep();
-
-    eprom_test();
-    rtc_test();
-
-    goto dbg;
 
     //__ctors_end();
     return 0;
