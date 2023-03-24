@@ -13,7 +13,7 @@ u_char twi_src0();
 void twi_sink0();
 
 extern char *charbuf_ptr;
-char read_one = 0;
+extern char read_one;
 u_short crc;
 
 int main()
@@ -23,6 +23,7 @@ int main()
     init();
     twi_init();
 dbg:
+    save_ctx();
     monitor();
     bio_echo("zzz");
     dosleep();

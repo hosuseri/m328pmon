@@ -14,16 +14,69 @@
 #define XAMH	r31
 
 	.equ baud_rate, 25	; 38.4kbps @16MHz
-	.equ charbuf, 0x0800	; low 8bits are ignored (fixed to 0x00)
+	.equ charbuf, 0x0100	; low 8bits are ignored (fixed to 0x00)
+
+	.equ x_r0,   0
+	.equ x_r1,   1
+	.equ x_r2,   2
+	.equ x_r3,   3
+	.equ x_r4,   4
+	.equ x_r5,   5
+	.equ x_r6,   6
+	.equ x_r7,   7
+	.equ x_r8,   8
+	.equ x_r9,   9
+	.equ x_r10, 10
+	.equ x_r11, 11
+	.equ x_r12, 12
+	.equ x_r13, 13
+	.equ x_r14, 14
+	.equ x_r15, 15
+	.equ x_r16, 16
+	.equ x_r17, 17
+	.equ x_r18, 18
+	.equ x_r19, 19
+	.equ x_r20, 20
+	.equ x_r21, 21
+	.equ x_r22, 22
+	.equ x_r23, 23
+	.equ x_r24, 24
+	.equ x_r25, 25
+	.equ x_r26, 26
+	.equ x_r27, 27
+	.equ x_r28, 28
+	.equ x_r29, 29
+	.equ x_r30, 30
+	.equ x_r31, 31
+	.equ x_spl, 32
+	.equ x_sph, 33
+	.equ x_pcl, 34
+	.equ x_pch, 35
+	.equ x_sreg,36
+	.equ ctx_siz, 37
+
 
 	.data
 	
 	.extern read_one
 	
+	.org	charbuf
+	.ds.b	0x80
+ctx0:
+	.ds.b	ctx_siz
+	
+	.global cur_ctx
+cur_ctx:
+	.dc.w	ctx0
+
 	.global charbuf_ptr
 charbuf_ptr:
 	.dc.w	charbuf
-	
+
+	.global read_one
+read_one:
+	.dc.b	0
+
 
 	.text
 
@@ -62,14 +115,6 @@ init:
 	sbi	_SFR_IO_ADDR(DDRB), DDB5
 	sbi	_SFR_IO_ADDR(PORTB), PORTB5
 
-	sei
-	ret
-	
-	.global monitor
-monitor:
-	push	r28
-	push	r29
-	//eor	r1, r1
 	ldi	r18, lo8(baud_rate)
 	sts	UBRR0L, r18
 	ldi	r18, hi8(baud_rate)
@@ -78,7 +123,17 @@ monitor:
 	sts	UCSR0B, r18
 	ldi	r18, (1<<USBS0)|(3<<UCSZ00)
 	sts	UCSR0C, r18
+
+	sei
+	ret
+	
+	.global monitor
+monitor:
+	push	r28
+	push	r29
 	;; 
+	call	show_regs
+	;;
 	mov	MODE, r1	; SRAM Mode
 	;; 
 	ldi	r28, 0x7f
@@ -434,5 +489,494 @@ bio_gets:
 	brne	1b
 2:	st	X+, r1
 	ret
+
+	.global save_ctx
+save_ctx:
+	push	r28
+	push	r29
+	lds	r28, cur_ctx
+	lds	r29, cur_ctx + 1
+	std	Y + x_r30, r30
+	std	Y + x_r31, r31
+	movw	r30, r28
+	pop	r29
+	pop	r28
+	std	Z + x_r0, r0
+	in	r0, _SFR_IO_ADDR(SREG)
+	std	Z + x_sreg, r0
+	std	Z + x_r1, r1
+	std	Z + x_r2, r2
+	std	Z + x_r3, r3
+	std	Z + x_r4, r4
+	std	Z + x_r5, r5
+	std	Z + x_r6, r6
+	std	Z + x_r7, r7
+	std	Z + x_r8, r8
+	std	Z + x_r9, r9
+	std	Z + x_r10, r10
+	std	Z + x_r11, r11
+	std	Z + x_r12, r12
+	std	Z + x_r13, r13
+	std	Z + x_r14, r14
+	std	Z + x_r15, r15
+	std	Z + x_r16, r16
+	std	Z + x_r17, r17
+	std	Z + x_r18, r18
+	std	Z + x_r19, r19
+	std	Z + x_r20, r20
+	std	Z + x_r21, r21
+	std	Z + x_r22, r22
+	std	Z + x_r23, r23
+	std	Z + x_r24, r24
+	std	Z + x_r25, r25
+	std	Z + x_r26, r26
+	std	Z + x_r27, r27
+	std	Z + x_r28, r28
+	std	Z + x_r29, r29
+	pop	r19
+	std	Z + x_pch, r19
+	pop	r18
+	std	Z + x_pcl, r18
+	in	r0, _SFR_IO_ADDR(SPL)
+	std	Z + x_spl, r0
+	in	r0, _SFR_IO_ADDR(SPH)
+	std	Z + x_sph, r0
+	movw	r30, r18
+	ijmp
+
+show_regs:
+	push	r28
+	push	r29
+	lds	r28, cur_ctx
+	lds	r29, cur_ctx + 1
+	ldi	r24, '\n'
+	call	bio_putchar
+	;;
+	ldi	r24, lo8(L_r0)
+	ldi	r25, hi8(L_r0)
+	call	pm_puts
+	ldd	r24, Y + x_r0
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r1)
+	ldi	r25, hi8(L_r1)
+	call	pm_puts
+	ldd	r24, Y + x_r1
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r2)
+	ldi	r25, hi8(L_r2)
+	call	pm_puts
+	ldd	r24, Y + x_r2
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r3)
+	ldi	r25, hi8(L_r3)
+	call	pm_puts
+	ldd	r24, Y + x_r3
+	ldi	r22, 2
+	call	phex
+	
+	ldi	r24, '\n'
+	call	bio_putchar
+
+	;;
+	ldi	r24, lo8(L_r4)
+	ldi	r25, hi8(L_r4)
+	call	pm_puts
+	ldd	r24, Y + x_r4
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r5)
+	ldi	r25, hi8(L_r5)
+	call	pm_puts
+	ldd	r24, Y + x_r5
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r6)
+	ldi	r25, hi8(L_r6)
+	call	pm_puts
+	ldd	r24, Y + x_r6
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r7)
+	ldi	r25, hi8(L_r7)
+	call	pm_puts
+	ldd	r24, Y + x_r7
+	ldi	r22, 2
+	call	phex
+	
+	ldi	r24, '\n'
+	call	bio_putchar
+
+	;;
+	ldi	r24, lo8(L_r8)
+	ldi	r25, hi8(L_r8)
+	call	pm_puts
+	ldd	r24, Y + x_r8
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r9)
+	ldi	r25, hi8(L_r9)
+	call	pm_puts
+	ldd	r24, Y + x_r9
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r10)
+	ldi	r25, hi8(L_r10)
+	call	pm_puts
+	ldd	r24, Y + x_r10
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r11)
+	ldi	r25, hi8(L_r11)
+	call	pm_puts
+	ldd	r24, Y + x_r11
+	ldi	r22, 2
+	call	phex
+	
+	ldi	r24, '\n'
+	call	bio_putchar
+
+	;;
+	ldi	r24, lo8(L_r12)
+	ldi	r25, hi8(L_r12)
+	call	pm_puts
+	ldd	r24, Y + x_r12
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r13)
+	ldi	r25, hi8(L_r13)
+	call	pm_puts
+	ldd	r24, Y + x_r13
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r14)
+	ldi	r25, hi8(L_r14)
+	call	pm_puts
+	ldd	r24, Y + x_r14
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r15)
+	ldi	r25, hi8(L_r15)
+	call	pm_puts
+	ldd	r24, Y + x_r15
+	ldi	r22, 2
+	call	phex
+	
+	ldi	r24, '\n'
+	call	bio_putchar
+
+	;;
+	ldi	r24, lo8(L_r16)
+	ldi	r25, hi8(L_r16)
+	call	pm_puts
+	ldd	r24, Y + x_r16
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r17)
+	ldi	r25, hi8(L_r17)
+	call	pm_puts
+	ldd	r24, Y + x_r17
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r18)
+	ldi	r25, hi8(L_r18)
+	call	pm_puts
+	ldd	r24, Y + x_r18
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r19)
+	ldi	r25, hi8(L_r19)
+	call	pm_puts
+	ldd	r24, Y + x_r19
+	ldi	r22, 2
+	call	phex
+	
+	ldi	r24, '\n'
+	call	bio_putchar
+
+	;;
+	ldi	r24, lo8(L_r20)
+	ldi	r25, hi8(L_r20)
+	call	pm_puts
+	ldd	r24, Y + x_r20
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r21)
+	ldi	r25, hi8(L_r21)
+	call	pm_puts
+	ldd	r24, Y + x_r21
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r22)
+	ldi	r25, hi8(L_r22)
+	call	pm_puts
+	ldd	r24, Y + x_r22
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r23)
+	ldi	r25, hi8(L_r23)
+	call	pm_puts
+	ldd	r24, Y + x_r23
+	ldi	r22, 2
+	call	phex
+	
+	ldi	r24, '\n'
+	call	bio_putchar
+
+	;;
+	ldi	r24, lo8(L_r24)
+	ldi	r25, hi8(L_r24)
+	call	pm_puts
+	ldd	r24, Y + x_r24
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r25)
+	ldi	r25, hi8(L_r25)
+	call	pm_puts
+	ldd	r24, Y + x_r25
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r26)
+	ldi	r25, hi8(L_r26)
+	call	pm_puts
+	ldd	r24, Y + x_r26
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r27)
+	ldi	r25, hi8(L_r27)
+	call	pm_puts
+	ldd	r24, Y + x_r27
+	ldi	r22, 2
+	call	phex
+	
+	ldi	r24, '\n'
+	call	bio_putchar
+
+	;;
+	ldi	r24, lo8(L_r28)
+	ldi	r25, hi8(L_r28)
+	call	pm_puts
+	ldd	r24, Y + x_r28
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r29)
+	ldi	r25, hi8(L_r29)
+	call	pm_puts
+	ldd	r24, Y + x_r29
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	
+	ldi	r24, lo8(L_r30)
+	ldi	r25, hi8(L_r30)
+	call	pm_puts
+	ldd	r24, Y + x_r30
+	ldi	r22, 2
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+
+	ldi	r24, lo8(L_r31)
+	ldi	r25, hi8(L_r31)
+	call	pm_puts
+	ldd	r24, Y + x_r31
+	ldi	r22, 2
+	call	phex
+	
+	ldi	r24, '\n'
+	call	bio_putchar
+	;;
+	ldi	r24, lo8(L_sreg)
+	ldi	r25, hi8(L_sreg)
+	call	pm_puts
+	ldd	r24, Y + x_sreg
+	ldi	r22, 2
+	call	phex
+	
+	ldi	r24, '\n'
+	call	bio_putchar
+	;;
+	ldi	r24, lo8(L_sp)
+	ldi	r25, hi8(L_sp)
+	call	pm_puts
+	ldd	r24, Y + x_spl
+	ldd	r25, Y + x_sph
+	ldi	r22, 4
+	call	phex
+	ldi	r24, lo8(L_sr_sep)
+	ldi	r25, hi8(L_sr_sep)
+	call	pm_puts
+	;;
+	ldi	r24, lo8(L_pc)
+	ldi	r25, hi8(L_pc)
+	call	pm_puts
+	ldd	r24, Y + x_pcl
+	ldd	r25, Y + x_pch
+	ldi	r22, 4
+	call	phex
+
+	ldi	r24, '('
+	call	bio_putchar
+
+	ldd	r24, Y + x_pcl
+	ldd	r25, Y + x_pch
+	lsl	r24
+	rol	r25
+	ldi	r22, 4
+	call	phex
+
+	ldi	r24, ')'
+	call	bio_putchar
+
+	ldi	r24, '\n'
+	call	bio_putchar
+
+	pop	r29
+	pop	r28
+	ret
+
+	.global pm_puts
+pm_puts:
+	movw	r30, r24
+1:	lpm	r24, Z+
+	or	r24, r24
+	breq	2f
+	call	bio_putchar
+	rjmp	1b
+2:	ret
+
+L_r0:	.asciz "R0 ="
+L_r1:	.asciz "R1 ="
+L_r2:	.asciz "R2 ="
+L_r3:	.asciz "R3 ="
+L_r4:	.asciz "R4 ="
+L_r5:	.asciz "R5 ="
+L_r6:	.asciz "R6 ="
+L_r7:	.asciz "R7 ="
+L_r8:	.asciz "R8 ="
+L_r9:	.asciz "R9 ="
+L_r10:	.asciz "R10="
+L_r11:	.asciz "R11="
+L_r12:	.asciz "R12="
+L_r13:	.asciz "R13="
+L_r14:	.asciz "R14="
+L_r15:	.asciz "R15="
+L_r16:	.asciz "R16="
+L_r17:	.asciz "R17="
+L_r18:	.asciz "R18="
+L_r19:	.asciz "R19="
+L_r20:	.asciz "R20="
+L_r21:	.asciz "R21="
+L_r22:	.asciz "R22="
+L_r23:	.asciz "R23="
+L_r24:	.asciz "R24="
+L_r25:	.asciz "R25="
+L_r26:	.asciz "R26="
+L_r27:	.asciz "R27="
+L_r28:	.asciz "R28="
+L_r29:	.asciz "R29="
+L_r30:	.asciz "R30="
+L_r31:	.asciz "R31="
+L_sreg:	.asciz "SREG="
+L_sp:	.asciz "SP="
+L_pc:	.asciz "PC="
+L_sr_sep:
+	.asciz ", "
+
+hello_world:
+	.asciz "hello, world\n"
 
 	.end

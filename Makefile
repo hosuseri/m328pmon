@@ -9,12 +9,12 @@ LDFLAGS = -Wl,-Map=$(TARGET).map # -nostartfiles -nodefaultlibs
 
 OBJS = \
 	vmq.o \
+	crc.o \
 	twi.o \
 	twibase.o \
 	24lc256.o \
 	rtc8564nb.o \
-	monitor.o \
-	crc.o
+	monitor.o
 
 PARTNO = m328p
 PORT = /dev/ttyUSB0

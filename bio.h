@@ -19,6 +19,7 @@ void bio_echo(const char *);
 volatile char bio_char_ready();
 volatile char bio_getchar();
 void bio_gets();
+void save_ctx();
 
 extern char *charbuf_ptr;
 
