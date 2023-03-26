@@ -18,8 +18,6 @@ u_short crc;
 
 int main()
 {
-    u_short i;
-
     init();
     twi_init();
     save_ctx();

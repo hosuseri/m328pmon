@@ -58,39 +58,57 @@
 
 	.data
 	
-	.extern read_one
-	
 	.org	charbuf
 	.ds.b	0x80
-ctx0:
-	.ds.b	ctx_siz
 	
-	.global cur_ctx
-cur_ctx:
-	.dc.w	ctx0
-
 	.global charbuf_ptr
 charbuf_ptr:
 	.dc.w	charbuf
+	
+	.equ	cq_size, 16
+cq_core:
+	.ds.b	cq_size
 
-	.global read_one
-read_one:
-	.dc.b	0
+cq_head:
+	.dc.w	cq_core
+
+cq_tail:
+	.dc.w	cq_core
+
+ctx0:	.ds.b	ctx_siz
+
+	.global cur_ctx
+cur_ctx:
+	.dc.w	ctx0
 
 
 	.text
 
 	.global USART_RX_vect
 USART_RX_vect:
+	push	r18
+	in	r18, _SFR_IO_ADDR(SREG)
+	push	r18
+	push	r26
+	push	r27
 	out	_SFR_IO_ADDR(SMCR), r1
-	push	r0
-	//in	r0, _SFR_IO_ADDR(SREG)
-	//push	r0
-	lds	r0, UDR0
-	sts	read_one, r0
-	//pop	r0
-	//out	_SFR_IO_ADDR(SREG), r0
-	pop	r0
+	lds	r26, cq_tail
+	lds	r27, cq_tail+1
+	lds	r18, UDR0
+	st	X+, r18
+	cpi	r26, lo8(cq_core+cq_size)
+	ldi	r18, hi8(cq_core+cq_size)
+	cpc	r27, r18
+	brcs	1f
+	ldi	r26, lo8(cq_core)
+	ldi	r27, hi8(cq_core)
+1:	sts	cq_tail, r26
+	sts	cq_tail+1, r27
+	pop	r27
+	pop	r26
+	pop	r18
+	out	_SFR_IO_ADDR(SREG), r18
+	pop	r18
 	reti
 
 	.global dosleep
@@ -155,23 +173,15 @@ backspace:
 	dec	r28		; Back up text index.
 	brmi	getline		; Beyond start of line, reinitialize.
 nextchar:
-	lds	r18, read_one
-	sts	read_one, r1
-	sei
-	or	r18, r18
-	brne	1f
-	
-	cbi	_SFR_IO_ADDR(PORTB), PORTB5
-	
-	ldi	r18, 1<<SE
-	out	_SFR_IO_ADDR(SMCR), r18
-	sleep
-	out	_SFR_IO_ADDR(SMCR), r1
-	
-	sbi	_SFR_IO_ADDR(PORTB), PORTB5
-	
-	rjmp	nextchar	; Loop until ready.
-1:
+	push	r24
+	push	r26
+	push	r27
+	call	bio_getchar
+	mov	r18, r24
+	pop	r27
+	pop	r26
+	pop	r24
+
 	cpi	r18, 0x1b	; ESC?
 	breq	escape		; Yes
 	
@@ -460,12 +470,21 @@ bio_echo:
 
 	.global bio_char_ready
 bio_char_ready:
-	lds	r24, read_one
-	ret
+	mov	r24, r1
+	cli
+	lds	r18, cq_head
+	lds	r19, cq_head+1
+	lds	r20, cq_tail
+	lds	r21, cq_tail+1
+	sei
+	cp	r18, r20
+	cpc	r19, r21
+	breq	1f
+	inc	r24
+1:	ret
 
 	.global bio_getchar
 bio_getchar:
-	sei
 1:	rcall	bio_char_ready
 	or	r24, r24
 	brne	2f
@@ -481,8 +500,21 @@ bio_getchar:
 
 	rjmp	1b
 
-2:	lds	r24, read_one
-	sts	read_one, r1
+2:	cli
+	lds	r26, cq_head
+	lds	r27, cq_head+1
+	sei
+	ld	r24, X+
+	cpi	r26, lo8(cq_core+cq_size)
+	ldi	r18, hi8(cq_core+cq_size)
+	cpc	r27, r18
+	brcs	3f
+	ldi	r26, lo8(cq_core)
+	ldi	r27, hi8(cq_core)
+3:	cli
+	sts	cq_head, r26
+	sts	cq_head+1, r27
+	sei
 	ret
 
 	.global bio_gets
@@ -491,7 +523,11 @@ bio_gets:
 	ldi	r27, hi8(charbuf)
 	ldi	r18, 127
 1:	push	r18
+	push	r26
+	push	r27
 	rcall	bio_getchar
+	pop	r27
+	pop	r26
 	pop	r18
 	cpi	r24, '\r'
 	breq	2f
