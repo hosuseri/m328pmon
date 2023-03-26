@@ -38,7 +38,7 @@ $(TARGET).mot: $(TARGET).elf
 	$(OBJCOPY) -I elf32-avr -O srec $(TARGET).elf $(TARGET).mot
 
 $(TARGET).elf: $(OBJS)
-	$(CC) $(CFLAGS) -o $(TARGET).elf $(OBJS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(TARGET).elf $(OBJS)
 
 .c.o:
 	$(CC) $(CFLAGS) -c $<
