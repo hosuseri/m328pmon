@@ -14,7 +14,7 @@
 #define XAMH	r31
 
 	.equ baud_rate, 25	; 38.4kbps @16MHz
-	.equ charbuf, 0x0100	; low 8bits are ignored (fixed to 0x00)
+	.equ charbuf, 0x100	; low 8bits are ignored (fixed to 0x00)
 
 	.equ x_r0,   0
 	.equ x_r1,   1
@@ -58,12 +58,13 @@
 
 	.data
 	
-	.org	charbuf
+	.org	charbuf - 0x100
+cb_start:
 	.ds.b	0x80
 	
-	.global charbuf_ptr
-charbuf_ptr:
-	.dc.w	charbuf
+	.global cb_ptr
+cb_ptr:
+	.dc.w	cb_start
 	
 	.equ	cq_size, 16
 cq_core:

@@ -12,7 +12,7 @@ void rtc_test();
 u_char twi_src0();
 void twi_sink0();
 
-extern char *charbuf_ptr;
+extern char *cb_ptr;
 extern char read_one;
 u_short crc;
 
@@ -101,12 +101,12 @@ show_time:
     bio_echo("\nSET TIME\n");
     bio_gets();
     bio_putchar('\n');
-    for (p=charbuf_ptr, i=0; c = *p++; i++)
+    for (p=cb_ptr, i=0; c = *p++; i++)
 	if (c < '0' || c > '9')
 	    break;
 
     d = c;
-    p = charbuf_ptr;
+    p = cb_ptr;
     mm = 0x80;
 
     switch (i >> 1) {
