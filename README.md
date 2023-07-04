@@ -1,12 +1,12 @@
-# VMQ
-We installed 128KiB S-RAM outside the Atmel ATmega162.
+# m328pmon
+ATmega328P / Arduino UNO Rev.3 monitor
 
-The circuit diagram and monitor program will be published here.
+The original Hex Monitor program was designed by S. Wozniak for Apple-I computers. I ported it to ATmega328p.
 
-S-RAM is divided into 4 banks of 32KiB each, and can be mapped to 0x8000-0xffff. The first bank is partly fixedly mapped to 0x2000-0x7fff. By mapping other banks to 0x8000-, you can access up to 56KiB continuously. The first bank can be mapped to 0x8000 - at the same time, so the top 8KiB is also accessible.
+The 'P' command can be used to change the mode of FLASH. (However, the write target remains SRAM.)
+You can return to SRAM mode with the 'S' command.
+The 'R' command affects byte addresses (but not word addresses).
 
-The original hexadecimal monitor program was designed by S. Wozniak for his Apple-I computer. We ported this to ATmega162.
+You can also access the I2C EEPROM (24LC256) and RTC (8564NB). (experimental)
 
-Currently, this monitor can only access the RAM address space. However, for R commands, you can jump to a program in the program (Flash) memory space.
-
-These are without warranty without exception.
+NO WARRANTIES WITHOUT EXCEPTIONS.
