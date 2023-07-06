@@ -13,7 +13,7 @@
 #define XAML	r30
 #define XAMH	r31
 
-	.equ baud_rate, 25	; 38.4kbps @16MHz
+	.equ baud_rate, 32	; 38.4kbps @20MHz
 	.equ charbuf, 0x0800	; low 8bits are ignored (fixed to 0x00)
 
 	.text
